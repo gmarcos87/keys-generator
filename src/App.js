@@ -21,19 +21,23 @@ class App extends Component {
     this.setMasterKey = this.setMasterKey.bind(this)
     this.changeForm = this.changeForm.bind(this)
     this.calculateDerive = this.calculateDerive.bind(this)
+    this.submit = this.submit.bind(this)
   }
 
   changeForm(input) {
-
     this.setState(input)
-
     if (typeof input.masterWif !== 'undefined') {
       this.setMasterKey(input);
-      return
-    }    
+    }
+  }
 
+  submit() {
     if(this.state.masterWif !== '' && this.state.account !== '') {
-      this.calculateDerive()
+      try {
+        this.calculateDerive()
+      } catch(e) {
+        //not generated
+      }
     }
   }
 
@@ -41,17 +45,27 @@ class App extends Component {
     this.setState({msg: ''});
     try {
       let master = PrivateKey.fromWif(input.masterWif)
+      let masterKeys = {
+        privKey: master.toWif(),
+        pubKey: master.toPublicKey().toString()
+      }
       this.setState({
-        keys : { 
+        keys : {
           ...this.state.keys,
-          master: {
-            privKey: master.toWif(),
-            pubKey: master.toPublicKey().toString()
-          }
+          master: masterKeys
         }
       });
     } catch(e) {
-      this.setState({msg: 'Invalid WIF'})
+      console.log(e)
+      this.setState({
+        keys: {
+          master: null,
+          owner: null,
+          active: null,
+          memo: null
+        },
+        msg: 'Invalid WIF'
+      })
     }
   }
 
@@ -61,7 +75,7 @@ class App extends Component {
       keys[role] = this.generateKeyFromPassword(
         this.state.account,
         role,
-        this.state.keys.master
+        this.state.keys.master.privKey
       )
     })
     this.setState({
@@ -73,11 +87,11 @@ class App extends Component {
   }
 
   generateKeyFromPassword(accountName, role, password) {
-    let seed = accountName + role + password;
+    let seed = accountName + '-' + role + '-' + PrivateKey.fromSeed(password).toWif();
     let privKey = PrivateKey.fromSeed(seed);
     let pubKey = privKey.toPublicKey().toString();
 
-    return {privKey, pubKey};
+    return {privKey: privKey.toWif(), pubKey, seed};
   }
 
   render() {
@@ -88,7 +102,8 @@ class App extends Component {
 
         <label>Master Wif</label>
         <input type='text' onChange={ (e) => this.changeForm({masterWif:e.target.value}) }/>
-
+        <button onClick={this.submit}>Calculate</button>
+        {this.state.msg}
         <div className="debug">
           <pre>
             {JSON.stringify(this.state.keys, null, '  ')}
